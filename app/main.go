@@ -53,12 +53,12 @@ func main() {
 		// Create an empty response
 		response := DNSHeader{
 			ID:      1234,
-			QR:      true,
+			QR:      1,
 			OPCODE:  0,
-			AA:      false,
-			TC:      false,
-			RD:      false,
-			RA:      false,
+			AA:      0,
+			TC:      0,
+			RD:      0,
+			RA:      0,
 			Z:       0,
 			RCODE:   0,
 			QDCOUNT: 0,
