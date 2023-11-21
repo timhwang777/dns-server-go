@@ -1,7 +1,6 @@
 package main
 
 import (
-	"bytes"
 	"encoding/binary"
 	"fmt"
 	"net"
@@ -21,6 +20,49 @@ type DNSHeader struct {
 	ANCOUNT uint16
 	NSCOUNT uint16
 	ARCOUNT uint16
+}
+
+func (h *DNSHeader) packHeader() uint16 {
+	var header uint16 = 0
+	if h.QR {
+		header += 1 << 15
+	}
+	if h.OPCODE != 0 {
+		header += uint16(h.OPCODE) << 11
+	}
+	if h.AA {
+		header += 1 << 10
+	}
+	if h.TC {
+		header += 1 << 9
+	}
+	if h.RD {
+		header += 1 << 8
+	}
+	if h.RA {
+		header += 1 << 7
+	}
+	if h.Z != 0 {
+		header += uint16(h.Z) << 6
+	}
+	if h.RCODE != 0 {
+		header += uint16(h.RCODE)
+	}
+
+	return header
+}
+
+func (h *DNSHeader) encodeHeader() []byte {
+	buffer := make([]byte, 12)
+
+	binary.BigEndian.PutUint16(buffer[0:], h.ID)
+	binary.BigEndian.PutUint16(buffer[2:], h.packHeader())
+	binary.BigEndian.PutUint16(buffer[4:], h.QDCOUNT)
+	binary.BigEndian.PutUint16(buffer[6:], h.ANCOUNT)
+	binary.BigEndian.PutUint16(buffer[8:], h.NSCOUNT)
+	binary.BigEndian.PutUint16(buffer[10:], h.ARCOUNT)
+
+	return buffer
 }
 
 func main() {
@@ -50,15 +92,15 @@ func main() {
 		receivedData := string(buf[:size])
 		fmt.Printf("Received %d bytes from %s: %s\n", size, source, receivedData)
 
-		// Create an empty response
-		response := DNSHeader{
+		// DNS Header
+		header := DNSHeader{
 			ID:      1234,
-			QR:      1,
+			QR:      true,
 			OPCODE:  0,
-			AA:      0,
-			TC:      0,
-			RD:      0,
-			RA:      0,
+			AA:      false,
+			TC:      false,
+			RD:      false,
+			RA:      false,
 			Z:       0,
 			RCODE:   0,
 			QDCOUNT: 0,
@@ -67,14 +109,9 @@ func main() {
 			ARCOUNT: 0,
 		}
 
-		buffer := new(bytes.Buffer)
-		err = binary.Write(buffer, binary.BigEndian, response)
-		if err != nil {
-			fmt.Println("Failed to encode response:", err)
-		}
-		byteResponse := buffer.Bytes()
+		response := header.encodeHeader()
 
-		_, err = udpConn.WriteToUDP(byteResponse, source)
+		_, err = udpConn.WriteToUDP(response, source)
 		if err != nil {
 			fmt.Println("Failed to send response:", err)
 		}
