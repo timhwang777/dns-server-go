@@ -118,9 +118,10 @@ func (a *DNSAnswer) Encode() []byte {
 	binary.BigEndian.PutUint32(buffer, uint32(a.TTL))
 	a.Length = len(a.Data)
 	binary.BigEndian.PutUint16(buffer, uint16(a.Length))
+	ip := net.ParseIP(a.Data).To4()
 
 	result := append(sequence, buffer...)
-	result = append(result, []byte(a.Data)...)
+	result = append(result, ip...)
 
 	return result
 }
