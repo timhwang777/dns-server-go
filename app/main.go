@@ -94,7 +94,7 @@ func (q *DNSQuestion) Encode() []byte {
 	sequence = append(sequence, '\x00')
 
 	// convert type and class
-	buffer := make([]byte, 4)
+	buffer := make([]byte, 2)
 	binary.BigEndian.PutUint16(buffer, uint16(q.Type))
 	binary.BigEndian.PutUint16(buffer, uint16(q.Class))
 
@@ -112,13 +112,13 @@ func (a *DNSAnswer) Encode() []byte {
 	}
 	sequence = append(sequence, '\x00')
 
-	buffer := make([]byte, 10)
+	buffer := make([]byte, 4)
 	binary.BigEndian.PutUint16(buffer, uint16(a.Type))
 	binary.BigEndian.PutUint16(buffer, uint16(a.Class))
 	binary.BigEndian.PutUint32(buffer, uint32(a.TTL))
 	a.Length = len(a.Data)
 	binary.BigEndian.PutUint16(buffer, uint16(a.Length))
-	ip := []byte(a.Data)
+	ip := net.ParseIP(a.Data).To4()
 
 	result := append(sequence, buffer...)
 	result = append(result, ip...)
