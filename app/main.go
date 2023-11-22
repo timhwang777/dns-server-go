@@ -183,7 +183,7 @@ func main() {
 			Type:  1,
 			Class: 1,
 			TTL:   60,
-			Data:  "\x08\x08\x08\x08",
+			Data:  "8.8.8.8",
 		}
 
 		response := append(header.Encode(), question.Encode()...)
