@@ -30,12 +30,11 @@ type DNSQuestion struct {
 }
 
 type DNSAnswer struct {
-	Name   string
-	Type   int
-	Class  int
-	TTL    int
-	Length int
-	Data   string
+	Name  string
+	Type  int
+	Class int
+	TTL   int
+	Data  string
 }
 
 func (h *DNSHeader) packHeader() uint16 {
