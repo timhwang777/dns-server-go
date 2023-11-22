@@ -79,6 +79,7 @@ func (h *DNSHeader) Encode() []byte {
 	binary.BigEndian.PutUint16(buffer[8:], h.NSCOUNT)
 	binary.BigEndian.PutUint16(buffer[10:], h.ARCOUNT)
 
+	fmt.Println("Header Result:", buffer)
 	return buffer
 }
 
@@ -95,10 +96,11 @@ func (q *DNSQuestion) Encode() []byte {
 
 	// convert type and class
 	buffer := make([]byte, 4)
-	binary.BigEndian.PutUint16(buffer, uint16(q.Type))
-	binary.BigEndian.PutUint16(buffer, uint16(q.Class))
+	binary.BigEndian.PutUint16(buffer[0:], uint16(q.Type))
+	binary.BigEndian.PutUint16(buffer[2:], uint16(q.Class))
 
 	result := append(sequence, buffer...)
+	fmt.Println("Question Result:", result)
 
 	return result
 }
@@ -115,13 +117,15 @@ func (a *DNSAnswer) Encode() []byte {
 	buffer := make([]byte, 10)
 	ip := net.ParseIP(a.Data).To4()
 	a.Length = len(ip)
-	binary.BigEndian.PutUint16(buffer, uint16(a.Type))
-	binary.BigEndian.PutUint16(buffer, uint16(a.Class))
-	binary.BigEndian.PutUint32(buffer, uint32(a.TTL))
-	binary.BigEndian.PutUint16(buffer, uint16(a.Length))
+	binary.BigEndian.PutUint16(buffer[0:], uint16(a.Type))
+	binary.BigEndian.PutUint16(buffer[2:], uint16(a.Class))
+	binary.BigEndian.PutUint32(buffer[4:], uint32(a.TTL))
+	binary.BigEndian.PutUint16(buffer[8:], uint16(a.Length))
 
 	result := append(sequence, buffer...)
 	result = append(result, ip...)
+
+	fmt.Println("Answer Result:", result)
 
 	return result
 }
@@ -188,6 +192,7 @@ func main() {
 
 		response := append(header.Encode(), question.Encode()...)
 		response = append(response, answer.Encode()...)
+		fmt.Println("Final Response: ", response)
 
 		_, err = udpConn.WriteToUDP(response, source)
 		if err != nil {
