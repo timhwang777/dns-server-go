@@ -30,11 +30,12 @@ type DNSQuestion struct {
 }
 
 type DNSAnswer struct {
-	Name  string
-	Type  int
-	Class int
-	TTL   int
-	Data  string
+	Name   string
+	Type   int
+	Class  int
+	TTL    int
+	Length int
+	Data   string
 }
 
 func (h *DNSHeader) packHeader() uint16 {
@@ -115,6 +116,7 @@ func (a *DNSAnswer) Encode() []byte {
 	binary.BigEndian.PutUint16(buffer, uint16(a.Type))
 	binary.BigEndian.PutUint16(buffer, uint16(a.Class))
 	binary.BigEndian.PutUint32(buffer, uint32(a.TTL))
+	a.Length = len(a.Data)
 	binary.BigEndian.PutUint16(buffer, uint16(a.Length))
 
 	result := append(sequence, buffer...)
