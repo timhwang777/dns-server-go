@@ -29,6 +29,15 @@ type DNSQuestion struct {
 	Class int
 }
 
+type DNSAnswer struct {
+	Name   string
+	Type   int
+	Class  int
+	TTL    int
+	Length int
+	Data   string
+}
+
 func (h *DNSHeader) packHeader() uint16 {
 	var header uint16 = 0
 
@@ -94,6 +103,27 @@ func (q *DNSQuestion) Encode() []byte {
 	return result
 }
 
+func (a *DNSAnswer) Encode() []byte {
+	labels := strings.Split(a.Name, ".")
+	var sequence []byte
+	for _, label := range labels {
+		sequence = append(sequence, byte(len(label)))
+		sequence = append(sequence, label...)
+	}
+	sequence = append(sequence, '\x00')
+
+	buffer := make([]byte, 10)
+	binary.BigEndian.PutUint16(buffer, uint16(a.Type))
+	binary.BigEndian.PutUint16(buffer, uint16(a.Class))
+	binary.BigEndian.PutUint32(buffer, uint32(a.TTL))
+	binary.BigEndian.PutUint16(buffer, uint16(a.Length))
+
+	result := append(sequence, buffer...)
+	result = append(result, []byte(a.Data)...)
+
+	return result
+}
+
 func main() {
 	// Resolve the UDP address and port
 	udpAddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:2053")
@@ -145,7 +175,18 @@ func main() {
 			Class: 1,
 		}
 
+		// DNS Answer
+		answer := DNSAnswer{
+			Name:   "codecrafters.io",
+			Type:   1,
+			Class:  1,
+			TTL:    60,
+			Length: 4,
+			Data:   "8.8.8.8",
+		}
+
 		response := append(header.Encode(), question.Encode()...)
+		response = append(response, answer.Encode()...)
 
 		_, err = udpConn.WriteToUDP(response, source)
 		if err != nil {
