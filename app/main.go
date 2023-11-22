@@ -177,12 +177,11 @@ func main() {
 
 		// DNS Answer
 		answer := DNSAnswer{
-			Name:   "codecrafters.io",
-			Type:   1,
-			Class:  1,
-			TTL:    60,
-			Length: 4,
-			Data:   "8.8.8.8",
+			Name:  "codecrafters.io",
+			Type:  1,
+			Class: 1,
+			TTL:   60,
+			Data:  "8.8.8.8",
 		}
 
 		response := append(header.Encode(), question.Encode()...)
