@@ -142,8 +142,7 @@ func parseDNSHeader(receivedData []byte) DNSHeader {
 	parsedResponse.TC = (remainValues & (1 << 9)) != 0
 	parsedResponse.RD = (remainValues & (1 << 8)) != 0
 	parsedResponse.RA = (remainValues & (1 << 7)) != 0
-	parsedResponse.Z = uint8(remainValues >> 4)
-
+	parsedResponse.Z = uint8((remainValues >> 4) & 0x7)
 	return parsedResponse
 }
 
