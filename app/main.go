@@ -137,7 +137,7 @@ func parseDNSHeader(receivedData []byte) DNSHeader {
 
 	remainValues := binary.BigEndian.Uint16(receivedData[2:4])
 	parsedResponse.QR = (remainValues & (1 << 15)) != 0
-	parsedResponse.OPCODE = uint8((remainValues >> 11) & 0xF)
+	parsedResponse.OPCODE = uint8(remainValues >> 11)
 	parsedResponse.AA = (remainValues & (1 << 10)) != 0
 	parsedResponse.TC = (remainValues & (1 << 9)) != 0
 	parsedResponse.RD = (remainValues & (1 << 8)) != 0
