@@ -25,14 +25,14 @@ type DNSHeader struct {
 
 type DNSQuestion struct {
 	Name  string
-	Type  int
-	Class int
+	Type  uint16
+	Class uint16
 }
 
 type DNSAnswer struct {
 	Name   string
-	Type   int
-	Class  int
+	Type   uint16
+	Class  uint16
 	TTL    int
 	Length int
 	Data   string
@@ -136,14 +136,33 @@ func parseDNSHeader(receivedData []byte) DNSHeader {
 	}
 
 	remainValues := binary.BigEndian.Uint16(receivedData[2:4])
-	parsedResponse.QR = (remainValues & (1 << 15)) != 0
+	// parsedResponse.QR = (remainValues & (1 << 15)) != 0
 	parsedResponse.OPCODE = uint8((remainValues >> 11) & 0xF)
-	parsedResponse.AA = (remainValues & (1 << 10)) != 0
-	parsedResponse.TC = (remainValues & (1 << 9)) != 0
-	parsedResponse.RD = (remainValues & (1 << 8)) != 0
-	parsedResponse.RA = (remainValues & (1 << 7)) != 0
+	// parsedResponse.AA = (remainValues & (1 << 10)) != 0
+	// parsedResponse.TC = (remainValues & (1 << 9)) != 0
+	// parsedResponse.RD = (remainValues & (1 << 8)) != 0
+	// parsedResponse.RA = (remainValues & (1 << 7)) != 0
 	parsedResponse.Z = uint8((remainValues >> 4) & 0x7)
 	return parsedResponse
+}
+
+func parseQAndA(data []byte) (string, uint16, uint16) {
+	// skip the header section
+	start := 12
+
+	var nameParts []string
+	for len := data[start]; len != 0; len = data[start] {
+		start++
+		nameParts = append(nameParts, string(data[start:start+int(len)]))
+		start += int(len)
+	}
+	name := strings.Join(nameParts, ".")
+	start++
+
+	typeField := binary.BigEndian.Uint16(data[start : start+2])
+	classField := binary.BigEndian.Uint16(data[start+2 : start+4])
+
+	return name, typeField, classField
 }
 
 func main() {
@@ -170,6 +189,7 @@ func main() {
 			break
 		}
 
+		name, typeField, classField := parseQAndA(buf)
 		receivedData := string(buf[:size])
 		fmt.Printf("Received %d bytes from %s: %s\n", size, source, receivedData)
 
@@ -193,16 +213,16 @@ func main() {
 
 		// DNS Question
 		question := DNSQuestion{
-			Name:  "codecrafters.io",
-			Type:  1,
-			Class: 1,
+			Name:  name,
+			Type:  typeField,
+			Class: classField,
 		}
 
 		// DNS Answer
 		answer := DNSAnswer{
-			Name:  "codecrafters.io",
-			Type:  1,
-			Class: 1,
+			Name:  name,
+			Type:  typeField,
+			Class: classField,
 			TTL:   60,
 			Data:  "8.8.8.8",
 		}
