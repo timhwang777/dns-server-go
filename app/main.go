@@ -178,7 +178,7 @@ func main() {
 		// DNS Header
 		header := DNSHeader{
 			ID:      parsed.ID,
-			QR:      parsed.QR,
+			QR:      true,
 			OPCODE:  parsed.OPCODE,
 			AA:      parsed.AA,
 			TC:      parsed.TC,
