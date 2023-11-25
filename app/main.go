@@ -1,9 +1,11 @@
 package main
 
 import (
+	"bytes"
 	"encoding/binary"
 	"fmt"
 	"net"
+	"os"
 	"strings"
 )
 
@@ -36,6 +38,12 @@ type DNSAnswer struct {
 	TTL    int
 	Length int
 	Data   string
+}
+
+type DNSMessage struct {
+	Header   DNSHeader
+	Question []DNSQuestion
+	Answer   []DNSAnswer
 }
 
 func (h *DNSHeader) packHeader() uint16 {
@@ -130,39 +138,124 @@ func (a *DNSAnswer) Encode() []byte {
 	return result
 }
 
-func parseDNSHeader(receivedData []byte) DNSHeader {
-	parsedResponse := DNSHeader{
-		ID: binary.BigEndian.Uint16(receivedData[0:2]),
-	}
+func (h *DNSHeader) parseDNSHeader(data []byte) {
+	h.ID = binary.BigEndian.Uint16(data[0:2])
 
-	remainValues := binary.BigEndian.Uint16(receivedData[2:4])
-	// parsedResponse.QR = (remainValues & (1 << 15)) != 0
-	parsedResponse.OPCODE = uint8((remainValues >> 11) & 0xF)
-	// parsedResponse.AA = (remainValues & (1 << 10)) != 0
-	// parsedResponse.TC = (remainValues & (1 << 9)) != 0
-	parsedResponse.RD = (remainValues & (1 << 8)) != 0
-	// parsedResponse.RA = (remainValues & (1 << 7)) != 0
-	// parsedResponse.Z = uint8((remainValues >> 4) & 0x7)
-	return parsedResponse
+	remainValues := binary.BigEndian.Uint16(data[2:4])
+	h.QR = (remainValues>>15)&1 == 1
+	h.OPCODE = uint8((remainValues >> 11) & 0xF)
+	h.AA = (remainValues>>10)&1 == 1
+	h.TC = (remainValues>>9)&1 == 1
+	h.RD = (remainValues>>8)&1 == 1
+	h.RA = (remainValues>>7)&1 == 0
+	h.Z = uint8((remainValues >> 4) & 0x7) // reserved value
+	h.RCODE = uint8(remainValues & 0xF)
+	h.QDCOUNT = binary.BigEndian.Uint16(data[4:6])
+	h.ANCOUNT = binary.BigEndian.Uint16(data[4:8])
+	h.NSCOUNT = binary.BigEndian.Uint16(data[8:10])
+	h.ARCOUNT = binary.BigEndian.Uint16(data[10:12])
 }
 
-func parseQAndA(data []byte) (string, uint16, uint16) {
-	// skip the header section
-	start := 12
-
-	var nameParts []string
-	for len := data[start]; len != 0; len = data[start] {
-		start++
-		nameParts = append(nameParts, string(data[start:start+int(len)]))
-		start += int(len)
+func (m *DNSMessage) Encode() []byte {
+	buffer := new(bytes.Buffer)
+	buffer.Write(m.Header.Encode())
+	for _, q := range m.Question {
+		buffer.Write(q.Encode())
 	}
-	name := strings.Join(nameParts, ".")
-	start++
+	for _, a := range m.Answer {
+		buffer.Write(a.Encode())
+	}
 
-	typeField := binary.BigEndian.Uint16(data[start : start+2])
-	classField := binary.BigEndian.Uint16(data[start+2 : start+4])
+	return buffer.Bytes()
+}
 
-	return name, typeField, classField
+func parseQuestion(payload *bytes.Buffer, packet []byte) (DNSQuestion, error) {
+	var question DNSQuestion
+	var labels []string
+
+	// begin of the find dns name loop
+	for {
+		lenByte, err := payload.ReadByte()
+		if err != nil {
+			return DNSQuestion{}, err
+		}
+
+		if lenByte == 0 {
+			break
+		}
+
+		// it's a pointer, MSB is b11
+		if lenByte&0xC0 == 0xC0 {
+			byteRemain, err := payload.ReadByte()
+			if err != nil {
+				return DNSQuestion{}, err
+			}
+
+			offset := int(lenByte&0x3F)<<8 + int(byteRemain)
+
+			offsetPayload := bytes.NewBuffer(packet[offset:])
+			for {
+				offsetLen, err := offsetPayload.ReadByte()
+				if err != nil {
+					return DNSQuestion{}, err
+				}
+				if offsetLen == 0 {
+					break
+				}
+
+				offsetLabel := make([]byte, offsetLen)
+				_, err = offsetPayload.Read(offsetLabel)
+				if err != nil {
+					return DNSQuestion{}, err
+				}
+				labels = append(labels, string(offsetLabel))
+			}
+			break
+		}
+
+		label := make([]byte, lenByte)
+		_, err = payload.Read(label)
+		if err != nil {
+			return DNSQuestion{}, err
+		}
+		labels = append(labels, string(label))
+	} // end of the find dns name loop
+
+	question.Name = strings.Join(labels, ".")
+
+	// Type and Class
+	err := binary.Read(payload, binary.BigEndian, &question.Type)
+	if err != nil {
+		return DNSQuestion{}, err
+	}
+	err = binary.Read(payload, binary.BigEndian, &question.Class)
+	if err != nil {
+		return DNSQuestion{}, err
+	}
+
+	return question, nil
+}
+
+func parseDNSPacket(packet []byte) (*DNSMessage, error) {
+	var header DNSHeader
+	header.parseDNSHeader(packet[:12])
+
+	questions := make([]DNSQuestion, 0, header.QDCOUNT)
+	payload := bytes.NewBuffer(packet[12:])
+
+	for i := 0; i < int(header.QDCOUNT); i++ {
+		question, err := parseQuestion(payload, packet)
+		if err != nil {
+			return nil, err
+		}
+		questions = append(questions, question)
+	}
+
+	return &DNSMessage{
+		Header:   header,
+		Question: questions,
+		Answer:   make([]DNSAnswer, 0),
+	}, nil
 }
 
 func main() {
@@ -189,49 +282,52 @@ func main() {
 			break
 		}
 
-		name, typeField, classField := parseQAndA(buf)
-		receivedData := string(buf[:size])
-		fmt.Printf("Received %d bytes from %s: %s\n", size, source, receivedData)
+		packet := buf[:size]
+		decodedMessage, err := parseDNSPacket(packet)
+		if err != nil {
+			fmt.Fprintf(os.Stderr, "Falied to parse DNS packet: %s", err)
+		}
 
-		parsed := parseDNSHeader([]byte(receivedData))
+		// response
+		var response DNSMessage
+
 		// DNS Header
 		header := DNSHeader{
-			ID:      parsed.ID,
+			ID:      decodedMessage.Header.ID,
 			QR:      true,
-			OPCODE:  parsed.OPCODE,
+			OPCODE:  decodedMessage.Header.OPCODE,
 			AA:      false,
 			TC:      false,
-			RD:      parsed.RD,
+			RD:      decodedMessage.Header.RD,
 			RA:      false,
 			Z:       0,
 			RCODE:   4,
-			QDCOUNT: 1,
-			ANCOUNT: 1,
+			QDCOUNT: decodedMessage.Header.QDCOUNT,
+			ANCOUNT: decodedMessage.Header.ANCOUNT,
 			NSCOUNT: 0,
 			ARCOUNT: 0,
 		}
+		response.Header = header
 
 		// DNS Question
-		question := DNSQuestion{
-			Name:  name,
-			Type:  typeField,
-			Class: classField,
+		question := decodedMessage.Question
+		response.Question = question
+
+		response.Answer = make([]DNSAnswer, 0)
+		for _, q := range decodedMessage.Question {
+			ans := DNSAnswer{
+				Name:  q.Name,
+				Type:  q.Type,
+				Class: q.Class,
+				TTL:   1000,
+				Data:  "8.8.8.8",
+			}
+			response.Answer = append(response.Answer, ans)
 		}
 
-		// DNS Answer
-		answer := DNSAnswer{
-			Name:  name,
-			Type:  typeField,
-			Class: classField,
-			TTL:   60,
-			Data:  "8.8.8.8",
-		}
-
-		response := append(header.Encode(), question.Encode()...)
-		response = append(response, answer.Encode()...)
 		fmt.Println("Final Response: ", response)
 
-		_, err = udpConn.WriteToUDP(response, source)
+		_, err = udpConn.WriteToUDP(response.Encode(), source)
 		if err != nil {
 			fmt.Println("Failed to send response:", err)
 		}
