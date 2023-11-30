@@ -59,7 +59,7 @@ func main() {
 
 }
 
-func handleConnection(conn *net.UDPConn, source *net.UDPAddr, message DNSMessage, resolverAddr *net.UDPAddr) {
+func handleConnection(conn *net.UDPConn, source *net.UDPAddr, message *DNSMessage, resolverAddr *net.UDPAddr) {
 	resolverConn, err := net.DialUDP("udp", nil, resolverAddr)
 	if err != nil {
 		fmt.Println("Failed to connect to resolver:", err)
