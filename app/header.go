@@ -42,9 +42,9 @@ func (h *DNSHeader) packHeader() uint16 {
 	if h.RA {
 		header += 1 << 7
 	}
-	/*if h.Z != 0 {
+	if h.Z != 0 {
 		header += uint16(h.Z) << 6
-	}*/
+	}
 	if h.RCODE != 0 {
 		header += uint16(h.RCODE)
 	}

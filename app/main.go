@@ -65,7 +65,7 @@ func handleConnection(conn *net.UDPConn, source *net.UDPAddr, message *DNSMessag
 		fmt.Println("Failed to connect to resolver:", err)
 		return
 	}
-	defer conn.Close()
+	defer resolverConn.Close()
 
 	fmt.Println("Received message from", source)
 	fmt.Println("Message:", message)
