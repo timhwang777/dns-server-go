@@ -23,26 +23,26 @@ func (m *DNSMessage) Encode() []byte {
 	return buffer.Bytes()
 }
 
-func parseDNSMessage(packet []byte) (DNSMessage, error) {
-	var message DNSMessage
+func parseDNSMessage(packet []byte) (*DNSMessage, error) {
+	message := &DNSMessage{}
 
 	// parse the header
 	header, err := parseDNSHeader(packet)
 	if err != nil {
-		return DNSMessage{}, err
+		return nil, err
 	}
 
 	payload := bytes.NewBuffer(packet[12:])
 	// parse the questions
 	questions, err := parseDNSQuestions(payload, packet, int(header.QDCOUNT))
 	if err != nil {
-		return DNSMessage{}, err
+		return nil, err
 	}
 
 	// parse the answers
 	answers, err := parseDNSAnswers(payload, packet, int(header.ANCOUNT))
 	if err != nil {
-		return DNSMessage{}, err
+		return nil, err
 	}
 
 	message.Header = header
