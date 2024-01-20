@@ -65,6 +65,7 @@ func handleConnection(conn *net.UDPConn, source *net.UDPAddr, message *DNSMessag
 		fmt.Println("Failed to connect to resolver:", err)
 		return
 	}
+
 	defer resolverConn.Close()
 
 	fmt.Println("Received message from", source)
@@ -78,6 +79,7 @@ func handleConnection(conn *net.UDPConn, source *net.UDPAddr, message *DNSMessag
 			Answer:   []DNSAnswer{},
 		}
 
+		// Ask the name server one question and zero answers
 		nameServerMsg.Header.QDCOUNT = 1
 		nameServerMsg.Header.ANCOUNT = 0
 
